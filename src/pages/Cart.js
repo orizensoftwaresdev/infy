@@ -1,14 +1,43 @@
-// src/pages/Cart.js
-import React from 'react';
-import { Link } from 'react-router-dom';
+import React, { useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { useCartContext } from '../contexts/CartContext';
 import { useAuth } from '../contexts/AuthContext';
 import { toast } from 'react-toastify';
 import { FiTrash2, FiMinus, FiPlus, FiShoppingBag, FiArrowRight, FiTag } from 'react-icons/fi';
+import api from '../api/axios';
 
 const Cart = () => {
   const { cartItems, removeFromCart, increaseQuantity, decreaseQuantity, getTotalPrice, getTotalItems, clearCart } = useCartContext();
   const { isAuthenticated } = useAuth();
+  const navigate = useNavigate();
+  const [loading, setLoading] = useState(false);
+
+  const handleCheckout = async () => {
+    if (!isAuthenticated) {
+      navigate('/login', { state: { from: { pathname: '/cart' } } });
+      return;
+    }
+
+    setLoading(true);
+    try {
+      // Sync local cart to server before checkout
+      const syncItems = cartItems.map(item => ({
+        productId: item.id || item._id,
+        quantity: item.quantity,
+        size: item.selectedSize,
+        color: item.selectedColor || ''
+      }));
+
+      await api.put('/cart/sync', { items: syncItems });
+
+      navigate('/checkout');
+    } catch (error) {
+      console.error('Checkout sync error:', error);
+      toast.error('Failed to proceed to checkout. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   if (cartItems.length === 0) {
     return (
@@ -128,12 +157,13 @@ const Cart = () => {
             </div>
 
             {isAuthenticated ? (
-              <Link
-                to="/checkout"
-                className="block w-full text-center py-3.5 bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-semibold rounded-xl hover:from-purple-700 hover:to-indigo-700 transition shadow-lg"
+              <button
+                onClick={handleCheckout}
+                disabled={loading}
+                className="block w-full text-center py-3.5 bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-semibold rounded-xl hover:from-purple-700 hover:to-indigo-700 transition shadow-lg disabled:opacity-75 disabled:cursor-not-allowed"
               >
-                Proceed to Checkout <FiArrowRight className="inline w-4 h-4 ml-1" />
-              </Link>
+                {loading ? 'Processing...' : <>Proceed to Checkout <FiArrowRight className="inline w-4 h-4 ml-1" /></>}
+              </button>
             ) : (
               <Link
                 to="/login"

@@ -137,3 +137,54 @@ exports.clearCart = async (req, res, next) => {
         next(error);
     }
 };
+
+// @desc    Sync entire cart
+// @route   PUT /api/v1/cart/sync
+// @access  Private
+exports.syncCart = async (req, res, next) => {
+    try {
+        const { items } = req.body;
+        if (!Array.isArray(items)) {
+            return ApiResponse.error(res, 'Items must be an array', 400);
+        }
+
+        const validItems = [];
+        for (const item of items) {
+            // Check product
+            const product = await Product.findById(item.productId);
+            if (!product || !product.isActive) continue;
+
+            // Check quantity vs stock
+            let quantity = Number(item.quantity);
+            if (isNaN(quantity) || quantity < 1) quantity = 1;
+
+            if (product.stock < quantity) {
+                quantity = product.stock;
+            }
+            if (quantity > 0) {
+                validItems.push({
+                    product: item.productId,
+                    quantity: quantity,
+                    size: item.size || '',
+                    color: item.color || ''
+                });
+            }
+        }
+
+        let cart = await Cart.findOne({ user: req.user.id });
+        if (!cart) {
+            cart = new Cart({ user: req.user.id, items: validItems });
+        } else {
+            cart.items = validItems;
+        }
+
+        await cart.save();
+
+        const populatedCart = await Cart.findById(cart._id)
+            .populate('items.product', 'title price offerPrice images stock sizes');
+
+        return ApiResponse.success(res, { cart: populatedCart }, 'Cart synced');
+    } catch (error) {
+        next(error);
+    }
+};

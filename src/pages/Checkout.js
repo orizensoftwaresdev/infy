@@ -44,14 +44,18 @@ const Checkout = () => {
                     api.get('/cart'),
                     api.get('/settings')
                 ]);
-                const cartData = cartRes.data.data;
+
+                const cartData = cartRes.data.data.cart || cartRes.data.data;
+
                 if (!cartData || !cartData.items || cartData.items.length === 0) {
                     toast.warn('Your cart is empty');
                     navigate('/cart');
                     return;
                 }
                 setCart(cartData);
-                setSettings(settingsRes.data.data);
+
+                const settingsData = settingsRes.data.data.settings || settingsRes.data.data;
+                setSettings(settingsData);
             } catch (err) {
                 toast.error('Failed to load checkout data');
                 navigate('/cart');
